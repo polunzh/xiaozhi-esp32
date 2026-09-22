@@ -4,13 +4,15 @@
 
 static const char TAG[] = "Es8389AudioCodec";
 
-Es8389AudioCodec::Es8389AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port, int input_sample_rate, int output_sample_rate,
-    gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
-    gpio_num_t pa_pin, uint8_t es8389_addr, bool use_mclk, int input_channels, int output_channels) {
-    duplex_ = true; // 是否双工
-    input_reference_ = false; // 是否使用参考输入，实现回声消除
-    input_channels_ = input_channels; // 输入通道数
-    output_channels_ = output_channels; // 输出通道数
+Es8389AudioCodec::Es8389AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port,
+                                   int input_sample_rate, int output_sample_rate, gpio_num_t mclk,
+                                   gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
+                                   gpio_num_t pa_pin, uint8_t es8389_addr, bool use_mclk,
+                                   int input_channels, int output_channels, bool input_reference) {
+    duplex_ = true;                      // 是否双工
+    input_reference_ = input_reference;  // 最后一路输入是否为回声参考
+    input_channels_ = input_channels;    // 输入通道数
+    output_channels_ = output_channels;  // 输出通道数
     input_sample_rate_ = input_sample_rate;
     output_sample_rate_ = output_sample_rate;
     input_gain_ = 40;
@@ -44,6 +46,7 @@ Es8389AudioCodec::Es8389AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port,
     es8389_cfg.codec_mode = ESP_CODEC_DEV_WORK_MODE_BOTH;
     es8389_cfg.pa_pin = pa_pin;
     es8389_cfg.use_mclk = use_mclk;
+    es8389_cfg.no_dac_ref = false;  // 保留 ES8389 原有 ADCL + DACR 内部参考配置
     es8389_cfg.hw_gain.pa_voltage = 5.0;
     es8389_cfg.hw_gain.codec_dac_voltage = 3.3;
     codec_if_ = es8389_codec_new(&es8389_cfg);

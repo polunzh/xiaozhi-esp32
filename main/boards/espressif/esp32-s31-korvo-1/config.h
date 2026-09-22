@@ -19,8 +19,9 @@
 #define AUDIO_CODEC_PA_PIN      GPIO_NUM_7
 #define AUDIO_CODEC_ES8389_ADDR ES8389_CODEC_DEFAULT_ADDR
 #define AUDIO_CODEC_USE_MCLK    false
-#define AUDIO_INPUT_CHANNELS    2  // 双模拟麦克风阵列
-#define AUDIO_OUTPUT_CHANNELS   2  // 立体声输出，双 NS4150B 功放
+#define AUDIO_INPUT_CHANNELS 2  // ADCL 麦克风 + DACR 回声参考
+#define AUDIO_INPUT_REFERENCE true
+#define AUDIO_OUTPUT_CHANNELS 2  // 立体声输出，双 NS4150B 功放
 
 // 板载用户控件
 #define BUILTIN_LED_GPIO GPIO_NUM_37
