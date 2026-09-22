@@ -13,6 +13,9 @@ struct AudioStreamPacket {
     uint32_t timestamp = 0;
     uint32_t playback_id = 0;
     uint32_t media_position_ms = 0;
+    // Local-only subtitle timing; never serialized onto the wire.
+    uint32_t caption_id = 0;
+    uint32_t caption_position_ms = 0;
     std::vector<uint8_t> payload;
 };
 

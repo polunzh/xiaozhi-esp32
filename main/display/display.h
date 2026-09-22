@@ -46,6 +46,12 @@ public:
     virtual void SetEmotion(const char* emotion);
     virtual void SetChatMessage(const char* role, const char* content);
     virtual void ClearChatMessages();
+    virtual void BeginChatResponse() {}
+    virtual void AddChatSentence(uint32_t id, const char* text) {
+        SetChatMessage("assistant", text);
+    }
+    virtual void SetChatSentenceDuration(uint32_t id, uint32_t duration_ms) {}
+    virtual void SetChatPlaybackPosition(uint32_t id, uint32_t position_ms) {}
     virtual void SetTheme(Theme* theme);
     virtual Theme* GetTheme() { return current_theme_; }
     virtual void UpdateStatusBar(bool update_all = false);

@@ -867,6 +867,14 @@ choice DISPLAY_STYLE
             || BOARD_TYPE_ESP_SENSAIRSHUTTLE
 endchoice
 
+config USE_PAGED_CHAT_MESSAGE
+    bool "Use playback-following paged chat on landscape LCD"
+    depends on USE_DEFAULT_MESSAGE_STYLE
+    default n
+    help
+        Show a small emotion header and large paginated text with touch navigation.
+        Intended for landscape LCDs at least 640x400. Other sizes use the default UI.
+
 config USE_MULTILINE_CHAT_MESSAGE
     bool "Use multiline chat message display (default mode only)"
     depends on USE_DEFAULT_MESSAGE_STYLE

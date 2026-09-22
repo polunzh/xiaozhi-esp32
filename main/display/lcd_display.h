@@ -3,6 +3,9 @@
 
 #include "gif/lvgl_gif.h"
 #include "lvgl_display.h"
+#if CONFIG_USE_PAGED_CHAT_MESSAGE
+#include "paged_chat.h"
+#endif
 
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
@@ -33,6 +36,23 @@ protected:
     std::unique_ptr<LvglImage> preview_image_cached_ = nullptr;
     bool hide_subtitle_ = false;  // Control whether to hide chat messages/subtitles
 
+#if CONFIG_USE_PAGED_CHAT_MESSAGE
+    bool paged_chat_enabled_ = false;
+    bool paged_response_retained_ = false;
+    const lv_font_t* paged_font_ = nullptr;
+    PagedChat paged_chat_;
+    lv_obj_t* page_controls_ = nullptr;
+    lv_obj_t* page_previous_ = nullptr;
+    lv_obj_t* page_next_ = nullptr;
+    lv_obj_t* page_follow_ = nullptr;
+    lv_obj_t* page_count_label_ = nullptr;
+    lv_obj_t* page_follow_label_ = nullptr;
+    int page_text_height_ = 0;
+    void SetupPagedChat();
+    void StylePagedChat(Theme* theme);
+    void RenderPagedChat();
+    void AppendPagedChat(uint32_t id, const char* text);
+#endif
     void InitializeLcdThemes();
     virtual bool Lock(int timeout_ms = 0) override;
     virtual void Unlock() override;
@@ -47,6 +67,12 @@ public:
     virtual void SetEmotion(const char* emotion) override;
     virtual void SetChatMessage(const char* role, const char* content) override;
     virtual void ClearChatMessages() override;
+#if CONFIG_USE_PAGED_CHAT_MESSAGE
+    void BeginChatResponse() override;
+    void AddChatSentence(uint32_t id, const char* text) override;
+    void SetChatSentenceDuration(uint32_t id, uint32_t duration_ms) override;
+    void SetChatPlaybackPosition(uint32_t id, uint32_t position_ms) override;
+#endif
     virtual void SetPreviewImage(std::unique_ptr<LvglImage> image) override;
     virtual void SetupUI() override;
     // Add theme switching function

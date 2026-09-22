@@ -334,6 +334,7 @@ void AudioService::AudioOutputTask() {
 
         auto task = std::move(audio_playback_queue_.front());
         audio_playback_queue_.pop_front();
+        const uint32_t generation = playback_generation_;
         output_in_flight_ = true;
         audio_queue_cv_.notify_all();
         lock.unlock();
@@ -346,6 +347,11 @@ void AudioService::AudioOutputTask() {
 
         if (task.playback_id != 0 && callbacks_.on_playback_progress) {
             callbacks_.on_playback_progress(task.playback_id, task.media_position_ms);
+        }
+
+        if (task.caption_id != 0 && callbacks_.on_caption_progress &&
+            generation == playback_generation_) {
+            callbacks_.on_caption_progress(task.caption_id, task.caption_position_ms);
         }
 
         codec_->OutputData(task.pcm);
@@ -405,6 +411,8 @@ void AudioService::OpusCodecTask() {
             task.timestamp = packet->timestamp;
             task.playback_id = packet->playback_id;
             task.media_position_ms = packet->media_position_ms;
+            task.caption_id = packet->caption_id;
+            task.caption_position_ms = packet->caption_position_ms;
 
             SetDecodeSampleRate(packet->sample_rate, packet->frame_duration);
             bool decoded = false;

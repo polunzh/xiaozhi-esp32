@@ -12,7 +12,8 @@
                 "camera_vflip": true
             },
             "sdkconfig_append": [
-                "CONFIG_CAMERA_OV3660=y"
+                "CONFIG_CAMERA_OV3660=y",
+                "CONFIG_USE_PAGED_CHAT_MESSAGE=y"
             ]
         }
     ]

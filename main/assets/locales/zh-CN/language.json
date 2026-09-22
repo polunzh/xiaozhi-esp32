@@ -3,6 +3,11 @@
         "type": "zh-CN"
     },
     "strings": {
+        "CHAT_NAME": "小智",
+        "CHAT_PREVIOUS": "上一页",
+        "CHAT_NEXT": "下一页",
+        "CHAT_FOLLOW": "跟随朗读 · 开",
+        "CHAT_RESUME": "恢复跟随朗读",
         "WARNING": "警告",
         "INFO": "信息",
         "ERROR": "错误",

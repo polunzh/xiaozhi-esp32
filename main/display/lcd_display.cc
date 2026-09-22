@@ -335,6 +335,10 @@ LcdDisplay::~LcdDisplay() {
         esp_timer_delete(preview_timer_);
     }
 
+#if CONFIG_USE_PAGED_CHAT_MESSAGE
+    if (page_controls_ != nullptr)
+        lv_obj_del(page_controls_);
+#endif
     if (preview_image_ != nullptr) {
         lv_obj_del(preview_image_);
     }
@@ -1045,6 +1049,9 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_color(low_battery_label_, lv_color_white(), 0);
     lv_obj_center(low_battery_label_);
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+#if CONFIG_USE_PAGED_CHAT_MESSAGE
+    SetupPagedChat();
+#endif
 }
 
 void LcdDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
@@ -1098,6 +1105,15 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
         }
         return;
     }
+#if CONFIG_USE_PAGED_CHAT_MESSAGE
+    if (paged_chat_enabled_) {
+        paged_response_retained_ = false;
+        paged_chat_.Reset();
+        AppendPagedChat(0, content);
+        RenderPagedChat();
+        return;
+    }
+#endif
     lv_anim_delete(chat_message_label_, nullptr);
     lv_label_set_text(chat_message_label_, content);
     // Show bottom_bar_ only when there is content (and subtitle is not globally hidden)
@@ -1119,6 +1135,16 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
 
 void LcdDisplay::ClearChatMessages() {
     DisplayLockGuard lock(this);
+#if CONFIG_USE_PAGED_CHAT_MESSAGE
+    // Idle transitions retain the last answer for review. BeginChatResponse resets it.
+    if (paged_chat_enabled_) {
+        if (paged_response_retained_)
+            return;
+        paged_chat_.Reset();
+        RenderPagedChat();
+        return;
+    }
+#endif
     // In non-wechat mode, just clear the chat message label and hide the bar
     if (chat_message_label_ != nullptr) {
         lv_label_set_text(chat_message_label_, "");
@@ -1175,6 +1201,14 @@ void LcdDisplay::SetEmotion(const char* emotion) {
         gif_controller_->Stop();
         gif_controller_.reset();
     }
+#if CONFIG_USE_PAGED_CHAT_MESSAGE
+    if (paged_chat_enabled_) {
+        auto dsc = image->image_dsc();
+        auto dimension = std::max(dsc->header.w, dsc->header.h);
+        if (dimension > 0)
+            lv_image_set_scale(emoji_image_, 44 * 256 / dimension);
+    }
+#endif
     if (image->IsGif()) {
         // Create new GIF controller
         gif_controller_ = std::make_unique<LvglGif>(image->image_dsc());
@@ -1357,6 +1391,10 @@ void LcdDisplay::SetTheme(Theme* theme) {
     // Update low battery popup
     lv_obj_set_style_bg_color(low_battery_popup_, lvgl_theme->low_battery_color(), 0);
 
+#if CONFIG_USE_PAGED_CHAT_MESSAGE
+    if (paged_chat_enabled_)
+        StylePagedChat(lvgl_theme);
+#endif
     // No errors occurred. Save theme to settings
     Display::SetTheme(lvgl_theme);
 }
@@ -1364,6 +1402,12 @@ void LcdDisplay::SetTheme(Theme* theme) {
 void LcdDisplay::SetHideSubtitle(bool hide) {
     DisplayLockGuard lock(this);
     hide_subtitle_ = hide;
+#if CONFIG_USE_PAGED_CHAT_MESSAGE
+    if (paged_chat_enabled_) {
+        RenderPagedChat();
+        return;
+    }
+#endif
 
     // Immediately update UI visibility based on the setting
     if (bottom_bar_ != nullptr) {

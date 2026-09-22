@@ -1,0 +1,57 @@
+<style>
+#xz-pages { container-type:inline-size; max-width:800px; margin:auto; color-scheme:light dark; font-family:"PingFang SC","Microsoft YaHei",sans-serif; }
+#xz-pages .screen { --ink:light-dark(#252a28,#e7eee9); --soft:light-dark(#5b655f,#a8b5ad); --paper:light-dark(#fafbf8,#19201c); --line:light-dark(#dce2da,#3c4740); color:var(--ink); background:var(--paper); border:1px solid var(--line); aspect-ratio:5/3; min-height:310px; display:flex; flex-direction:column; overflow:hidden; }
+#xz-pages .top { display:flex; align-items:center; gap:14px; padding:clamp(12px,2.5cqw,20px) clamp(16px,4cqw,32px); border-bottom:1px solid var(--line); }
+#xz-pages .face { width:clamp(32px,5.5cqw,44px); height:clamp(32px,5.5cqw,44px); color:light-dark(#41604e,#a9c9b5); }
+#xz-pages .identity { font-size:clamp(15px,2.75cqw,22px); font-weight:500; }
+#xz-pages .status { margin-left:auto; font-size:clamp(12px,2.25cqw,18px); color:var(--soft); }
+#xz-pages .copy { flex:1; padding:clamp(14px,3cqw,24px) clamp(16px,4cqw,32px); font-size:clamp(16px,var(--copy-size,3.75cqw),32px); line-height:1.85; letter-spacing:0; }
+#xz-pages .copy p { margin:0; }
+#xz-pages .bottom { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px clamp(12px,3cqw,24px); border-top:1px solid var(--line); font-size:clamp(12px,2.25cqw,18px); }
+#xz-pages button { font:inherit; color:var(--ink); background:transparent; border:0; min-height:44px; padding:8px 12px; border-radius:6px; cursor:pointer; }
+#xz-pages button:disabled { opacity:.35; cursor:default; }
+#xz-pages button:hover:enabled { background:light-dark(#e9eee7,#2d3a31); }
+#xz-pages button:focus-visible { outline:2px solid currentColor; outline-offset:2px; }
+#xz-pages .follow { color:light-dark(#315942,#b1d8bd); background:light-dark(#e9efe7,#293d30); }
+#xz-pages .pagination { display:flex; align-items:center; gap:clamp(2px,1.5cqw,12px); }
+#xz-pages .count { min-width:3em; text-align:center; font-variant-numeric:tabular-nums; color:var(--soft); }
+</style>
+<div id="xz-pages" aria-label="小智 800×480 分页阅读草图">
+ <section class="screen" aria-label="小智回答界面">
+  <header class="top"><i class="face" data-lucide="smile" aria-hidden="true"></i><span class="identity">小智</span><span class="status">正在回答</span></header>
+  <main class="copy" aria-live="polite"><p></p></main>
+  <footer class="bottom">
+   <button type="button" class="follow" aria-pressed="true">跟随朗读 · 开</button>
+   <div class="pagination"><button class="prev" type="button" aria-label="上一页">上一页</button><span class="count">1 / 2</span><button class="next" type="button" aria-label="下一页">下一页</button></div>
+  </footer>
+ </section>
+</div>
+<script>
+(() => {
+ const root=document.getElementById('xz-pages');
+ const pages=[
+  ['小猫在窗边发现了一片叶子。','它伸出爪子，轻轻碰了一下。','风吹进来，叶子转了个圈，','落在它的鼻尖上。','小猫打了个喷嚏，叶子又飞走了。'],
+  ['它追着叶子跑到门口，','看见院子里已经铺满了金黄色。','原来，秋天悄悄地来了。']
+ ];
+ const state={page:0,follow:true,size:'30'};
+ const copy=root.querySelector('.copy p');
+ const prev=root.querySelector('.prev');
+ const next=root.querySelector('.next');
+ const follow=root.querySelector('.follow');
+ function render(){
+  copy.replaceChildren();
+  pages[state.page].forEach((line,i)=>{if(i)copy.append(document.createElement('br'));copy.append(document.createTextNode(line));});
+  root.querySelector('.count').textContent=`${state.page+1} / ${pages.length}`;
+  root.querySelector('.status').textContent=state.follow?'正在回答':'回看中 · 语音继续';
+  root.querySelector('.copy').style.setProperty('--copy-size',`${Number(state.size)/8}cqw`);
+  prev.disabled=state.page===0;next.disabled=state.page===pages.length-1;
+  follow.textContent=state.follow?'跟随朗读 · 开':'恢复跟随朗读';
+  follow.setAttribute('aria-pressed',String(state.follow));
+ }
+ prev.onclick=()=>{state.page=Math.max(0,state.page-1);state.follow=false;render();};
+ next.onclick=()=>{state.page=Math.min(pages.length-1,state.page+1);state.follow=false;render();};
+ follow.onclick=()=>{state.follow=!state.follow;render();};
+ render();
+ if(globalThis.Tweak){const tweak=new Tweak({container:root,onChange:render});tweak.addSelect(state,'size',{label:'正文字号',options:[{label:'28 px',value:'28'},{label:'30 px',value:'30'},{label:'32 px',value:'32'}]});}
+})();
+</script>

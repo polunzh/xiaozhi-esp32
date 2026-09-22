@@ -91,6 +91,16 @@ void Application::Initialize() {
     callbacks.on_playback_progress = [this](uint32_t playback_id, uint32_t media_position_ms) {
         notify_player_.OnPlaybackProgress(playback_id, media_position_ms);
     };
+#if CONFIG_USE_PAGED_CHAT_MESSAGE
+    callbacks.on_caption_progress = [this](uint32_t id, uint32_t position_ms) {
+        {
+            std::lock_guard<std::mutex> lock(caption_mutex_);
+            playing_caption_id_ = id;
+            playing_caption_ms_ = position_ms;
+        }
+        xEventGroupSetBits(event_group_, MAIN_EVENT_CAPTION_PROGRESS);
+    };
+#endif
     audio_service_.SetCallbacks(callbacks);
 
     // Add state change listeners
@@ -182,7 +192,7 @@ void Application::Run() {
         MAIN_EVENT_VAD_CHANGE | MAIN_EVENT_CLOCK_TICK | MAIN_EVENT_ERROR |
         MAIN_EVENT_NETWORK_CONNECTED | MAIN_EVENT_NETWORK_DISCONNECTED | MAIN_EVENT_TOGGLE_CHAT |
         MAIN_EVENT_START_LISTENING | MAIN_EVENT_STOP_LISTENING | MAIN_EVENT_ACTIVATION_DONE |
-        MAIN_EVENT_STATE_CHANGED | MAIN_EVENT_PLAYBACK_DRAINED;
+        MAIN_EVENT_STATE_CHANGED | MAIN_EVENT_PLAYBACK_DRAINED | MAIN_EVENT_CAPTION_PROGRESS;
 
     while (true) {
         auto bits = xEventGroupWaitBits(event_group_, ALL_EVENTS, pdTRUE, pdFALSE, portMAX_DELAY);
@@ -271,6 +281,17 @@ void Application::Run() {
             }
         }
 
+#if CONFIG_USE_PAGED_CHAT_MESSAGE
+        if (bits & MAIN_EVENT_CAPTION_PROGRESS) {
+            uint32_t id, position;
+            {
+                std::lock_guard<std::mutex> lock(caption_mutex_);
+                id = playing_caption_id_;
+                position = playing_caption_ms_;
+            }
+            Board::GetInstance().GetDisplay()->SetChatPlaybackPosition(id, position);
+        }
+#endif
         if (bits & MAIN_EVENT_CLOCK_TICK) {
             clock_ticks_++;
             auto display = Board::GetInstance().GetDisplay();
@@ -553,6 +574,16 @@ void Application::InitializeProtocol() {
 
     protocol_->OnIncomingAudio([this](std::unique_ptr<AudioStreamPacket> packet) {
         if (GetDeviceState() == kDeviceStateSpeaking) {
+#if CONFIG_USE_PAGED_CHAT_MESSAGE
+            {
+                std::lock_guard<std::mutex> lock(caption_mutex_);
+                packet->caption_id = receiving_caption_id_;
+                packet->caption_position_ms = receiving_caption_ms_;
+                if (packet->frame_duration > 0 && packet->frame_duration <= 120) {
+                    receiving_caption_ms_ += packet->frame_duration;
+                }
+            }
+#endif
             audio_service_.PushPacketToDecodeQueue(std::move(packet));
         }
     });
@@ -622,11 +653,26 @@ void Application::InitializeProtocol() {
                 return;
             }
             if (strcmp(state->valuestring, "start") == 0) {
+#if CONFIG_USE_PAGED_CHAT_MESSAGE
+                {
+                    std::lock_guard<std::mutex> lock(caption_mutex_);
+                    receiving_caption_id_ = receiving_caption_ms_ = 0;
+                }
+#endif
                 Schedule([this]() {
+                    Board::GetInstance().GetDisplay()->BeginChatResponse();
                     aborted_ = false;
                     SetDeviceState(kDeviceStateSpeaking);
                 });
             } else if (strcmp(state->valuestring, "stop") == 0) {
+#if CONFIG_USE_PAGED_CHAT_MESSAGE
+                {
+                    std::lock_guard<std::mutex> lock(caption_mutex_);
+                    Schedule([display, id = receiving_caption_id_, ms = receiving_caption_ms_]() {
+                        display->SetChatSentenceDuration(id, ms);
+                    });
+                }
+#endif
                 Schedule([this]() {
                     if (GetDeviceState() == kDeviceStateSpeaking) {
                         if (listening_mode_ == kListeningModeManualStop) {
@@ -645,10 +691,24 @@ void Application::InitializeProtocol() {
                         glyphs.clear();
                     }
                     ESP_LOGI(TAG, "<< %s", text->valuestring);
+                    uint32_t caption_id = 0, previous_id = 0, previous_ms = 0;
+#if CONFIG_USE_PAGED_CHAT_MESSAGE
+                    {
+                        std::lock_guard<std::mutex> lock(caption_mutex_);
+                        previous_id = receiving_caption_id_;
+                        previous_ms = receiving_caption_ms_;
+                        if (++caption_sequence_ == 0)
+                            ++caption_sequence_;
+                        caption_id = receiving_caption_id_ = caption_sequence_;
+                        receiving_caption_ms_ = 0;
+                    }
+#endif
                     Schedule([display, message = std::string(text->valuestring),
-                              glyphs = std::move(glyphs), bpp]() {
+                              glyphs = std::move(glyphs), bpp, caption_id, previous_id,
+                              previous_ms]() {
                         display->AddTextGlyphs(glyphs, bpp);
-                        display->SetChatMessage("assistant", message.c_str());
+                        display->SetChatSentenceDuration(previous_id, previous_ms);
+                        display->AddChatSentence(caption_id, message.c_str());
                     });
                 }
             }

@@ -3,6 +3,11 @@
         "type": "en-US"
     },
     "strings": {
+        "CHAT_NAME": "Xiaozhi",
+        "CHAT_PREVIOUS": "Previous",
+        "CHAT_NEXT": "Next",
+        "CHAT_FOLLOW": "Following voice",
+        "CHAT_RESUME": "Follow voice",
         "WARNING": "Warning",
         "INFO": "Information",
         "ERROR": "Error",
