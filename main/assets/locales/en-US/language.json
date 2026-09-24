@@ -3,7 +3,9 @@
         "type": "en-US"
     },
     "strings": {
-        "CHAT_NAME": "Xiaozhi",
+        "CHAT_SPEAK": "Xiaoman is speaking",
+        "CLOCK_WAKE_HINT": "Say “Ni hao Xiao Man” to wake me",
+        "CHAT_NAME": "Xiaoman",
         "CHAT_PREVIOUS": "Previous",
         "CHAT_NEXT": "Next",
         "CHAT_FOLLOW": "Following voice",

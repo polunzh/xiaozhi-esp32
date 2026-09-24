@@ -8,6 +8,9 @@ A personally maintained fork of [78/xiaozhi-esp32](https://github.com/78/xiaozhi
 
 - Playback-following paged chat, manual history navigation and resume-follow controls. The Korvo S31 variant enables `CONFIG_USE_PAGED_CHAT_MESSAGE` by default.
 - ES8389 playback reference channel configuration for Korvo S31.
+- The Korvo S31 variant uses the custom Chinese wake phrase “你好小满” (`ni hao xiao man`) with MultiNet7. Chinese and English UI name, speaking-status and wake-hint strings use Xiaoman.
+
+Flash the model assets together with the firmware when switching to this wake phrase. Set the assistant's name and wake phrase in your server configuration as well; the server controls its spoken identity.
 
 Page timing within a sentence is estimated from text proportions; the server does not provide word timestamps. See the [implementation and validation notes](docs/2026-09-22-paged-chat-plan.md).
 

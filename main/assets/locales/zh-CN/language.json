@@ -3,7 +3,9 @@
         "type": "zh-CN"
     },
     "strings": {
-        "CHAT_NAME": "小智",
+        "CHAT_SPEAK": "小满在说",
+        "CLOCK_WAKE_HINT": "说“你好小满”唤醒我",
+        "CHAT_NAME": "小满",
         "CHAT_PREVIOUS": "上一页",
         "CHAT_NEXT": "下一页",
         "CHAT_FOLLOW": "跟随朗读 · 开",
