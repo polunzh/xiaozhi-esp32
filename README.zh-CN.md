@@ -1,6 +1,36 @@
-# An MCP-based Chatbot
+**中文** | [English](./README.md)
 
-（中文 | [English](README.md) | [日本語](README_ja.md)）
+# XiaoZhi ESP32 — polunzh 定制版
+
+基于 [78/xiaozhi-esp32](https://github.com/78/xiaozhi-esp32) 持续维护的个人 fork，主要改进 ESP32-S31-Korvo-1 的语音与显示体验。保留上游提交历史、来源说明和 [MIT 许可证](LICENSE)。
+
+## 本版本改动
+
+- 跟随语音播放的分页对话、手动翻阅历史和恢复跟随控制。Korvo S31 变体默认开启 `CONFIG_USE_PAGED_CHAT_MESSAGE`。
+- 调整 Korvo S31 的 ES8389 播放参考通道配置。
+
+句内翻页时间按文本比例估算，服务端尚未提供逐词时间戳。实现和验证记录见[分页对话说明](docs/2026-09-22-paged-chat-plan.md)。
+
+## 验证范围
+
+2026-09-22 的验证记录包含 ESP-IDF v6.1 下 Korvo S31 构建成功，以及布局、自动翻页和触摸导航的实机确认。主题切换与超长历史的专项硬件压力测试仍待完成。继承的其他板型需要针对本 fork 分别验证。
+
+本次发布包含已提交的分页对话和编解码器调整。蓝牙音箱集成及后续界面实验仍保留为本地开发工作。
+
+## 构建 Korvo S31 变体
+
+先激活 ESP-IDF v6.1 环境，再执行：
+
+```sh
+idf.py --version
+python3 scripts/build.py espressif/esp32-s31-korvo-1 --name esp32-s31-korvo-1
+```
+
+构建命令会修改本地 `sdkconfig` 和构建状态。硬件说明见[板型文档](main/boards/espressif/esp32-s31-korvo-1/README.md)。
+
+## 上游项目概览
+
+以下内容介绍继承的功能和上游资源。[日文上游说明](README_ja.md)。
 
 ## 介绍
 
@@ -149,20 +179,8 @@
 - [78/xiaozhi-sf32](https://github.com/78/xiaozhi-sf32) 思澈科技的蓝牙芯片固件
 - [QuecPython/solution-xiaozhiAI](https://github.com/QuecPython/solution-xiaozhiAI) 移远提供的 QuecPython 固件
 
-## 关于项目
+## 来源与许可证
 
-这是一个由虾哥开源的 ESP32 项目，以 MIT 许可证发布，允许任何人免费使用，修改或用于商业用途。
+本项目基于 [78/xiaozhi-esp32](https://github.com/78/xiaozhi-esp32)。原版权声明与许可条款保留在 [LICENSE](LICENSE) 中；第三方组件和素材遵循各自许可证。
 
-我们希望通过这个项目，能够帮助大家了解 AI 硬件开发，将当下飞速发展的大语言模型应用到实际的硬件设备中。
-
-如果你有任何想法或建议，请随时提出 Issues 或加入 [Discord](https://discord.gg/C759fGMBcZ) 或 QQ 群：1011329060
-
-## Star History
-
-<a href="https://star-history.com/#78/xiaozhi-esp32&Date">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=78/xiaozhi-esp32&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=78/xiaozhi-esp32&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=78/xiaozhi-esp32&type=Date" />
- </picture>
-</a>
+本 fork 的问题请提交到 [polunzh/xiaozhi-esp32](https://github.com/polunzh/xiaozhi-esp32/issues)，并提供板型、SDK 版本和复现步骤。上游社区链接与资源归属原项目。

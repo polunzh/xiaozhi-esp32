@@ -1,6 +1,36 @@
-# An MCP-based Chatbot
+[中文](./README.zh-CN.md) | **English**
 
-(English | [中文](README_zh.md) | [日本語](README_ja.md))
+# XiaoZhi ESP32 — polunzh's fork
+
+A personally maintained fork of [78/xiaozhi-esp32](https://github.com/78/xiaozhi-esp32), focused on the ESP32-S31-Korvo-1 voice and display experience. Upstream history, attribution and the [MIT license](LICENSE) are preserved.
+
+## Changes in this fork
+
+- Playback-following paged chat, manual history navigation and resume-follow controls. The Korvo S31 variant enables `CONFIG_USE_PAGED_CHAT_MESSAGE` by default.
+- ES8389 playback reference channel configuration for Korvo S31.
+
+Page timing within a sentence is estimated from text proportions; the server does not provide word timestamps. See the [implementation and validation notes](docs/2026-09-22-paged-chat-plan.md).
+
+## Validation scope
+
+The 2026-09-22 validation record reports a successful ESP-IDF v6.1 Korvo S31 build and device checks for layout, automatic paging and touch navigation. Dedicated theme-switching and long-history hardware stress tests remain pending. Other inherited board variants require separate validation for this fork.
+
+This published revision includes the committed paged-chat and codec changes. Bluetooth speaker integration and subsequent display experiments remain local development work.
+
+## Build the Korvo S31 variant
+
+Activate your ESP-IDF v6.1 environment, then run:
+
+```sh
+idf.py --version
+python3 scripts/build.py espressif/esp32-s31-korvo-1 --name esp32-s31-korvo-1
+```
+
+The build command changes local `sdkconfig` and build state. See the [board guide](main/boards/espressif/esp32-s31-korvo-1/README.md) for hardware details.
+
+## Upstream project overview
+
+The following sections describe inherited features and upstream resources. [Japanese upstream overview](README_ja.md).
 
 ## Introduction
 
@@ -153,20 +183,8 @@ Custom Assets Tools:
 
 - [78/xiaozhi-assets-generator](https://github.com/78/xiaozhi-assets-generator) Custom Assets Generator (Wake words, fonts, emojis, backgrounds)
 
-## About the Project
+## Source and license
 
-This is an open-source ESP32 project, released under the MIT license, allowing anyone to use it for free, including for commercial purposes.
+Based on [78/xiaozhi-esp32](https://github.com/78/xiaozhi-esp32). Original copyright and permission notices are retained in [LICENSE](LICENSE); third-party components and assets retain their respective licenses.
 
-We hope this project helps everyone understand AI hardware development and apply rapidly evolving large language models to real hardware devices.
-
-If you have any ideas or suggestions, please feel free to raise Issues or join our [Discord](https://discord.gg/C759fGMBcZ) or QQ group: 1095994019
-
-## Star History
-
-<a href="https://star-history.com/#78/xiaozhi-esp32&Date">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=78/xiaozhi-esp32&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=78/xiaozhi-esp32&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=78/xiaozhi-esp32&type=Date" />
- </picture>
-</a>
+Report issues with this fork at [polunzh/xiaozhi-esp32](https://github.com/polunzh/xiaozhi-esp32/issues), including your board variant, SDK version and reproduction steps. Upstream community links and resources belong to the original project.
