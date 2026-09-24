@@ -6,6 +6,7 @@
 #include <freertos/event_groups.h>
 #include <freertos/task.h>
 
+#include <atomic>
 #include <cstdint>
 #include <deque>
 #include <functional>
@@ -157,7 +158,8 @@ private:
     std::function<void(const std::string&)> mcp_broadcast_callback_;
 
     bool has_server_time_ = false;
-    bool aborted_ = false;
+    std::atomic<bool> aborted_{false};
+    bool local_wake_ack_pending_ = false;
     bool assets_version_checked_ = false;
     bool play_popup_on_listening_ =
         false;  // Flag to play popup sound after state changes to listening
@@ -167,6 +169,7 @@ private:
     TaskHandle_t activation_task_handle_ = nullptr;
 
     // Event handlers
+    void PlayLocalWakeAck();
     void HandleStateChangedEvent();
     void HandleToggleChatEvent();
     void HandleStartListeningEvent();

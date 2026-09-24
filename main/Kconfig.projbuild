@@ -940,8 +940,18 @@ config CUSTOM_WAKE_WORD_THRESHOLD
     help
         Custom Wake Word Threshold, range 1-99, the smaller the more sensitive, default 20
 
+config LOCAL_WAKE_ACK
+    bool "Play a local Chinese wake acknowledgement"
+    default n
+    depends on USE_AFE_WAKE_WORD || USE_CUSTOM_WAKE_WORD
+    help
+        Immediately play the embedded Chinese phrase "我在" on wake-up, including
+        interruption of speech. Start listening without asking the server for a
+        greeting. The acknowledgement also works while the network is connecting.
+
 config SEND_WAKE_WORD_DATA
     bool "Send Wake Word Data"
+    default n if LOCAL_WAKE_ACK
     default y
     depends on USE_AFE_WAKE_WORD || USE_CUSTOM_WAKE_WORD
     help

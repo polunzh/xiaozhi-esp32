@@ -347,8 +347,9 @@ void AfeAudioEngine::UpdateActiveState() {
     } else {
         xEventGroupClearBits(event_group_, kAfeActive);
         control_generation_.fetch_add(1);
-        std::lock_guard<std::mutex> lock(input_buffer_mutex_);
-        input_buffer_.clear();
+        // Feed may hold input_buffer_mutex_ while waiting for the fetch task.
+        // Control callers (including the main task and wake callback) must not
+        // wait for that lock. The fetch task discards buffered input on reset.
         if (afe_data_ != nullptr) {
             // Don't call reset_buffer() here: this runs in the main task while
             // ProcessingTask may be inside fetch_with_delay() on the same AFE
@@ -393,12 +394,16 @@ void AfeAudioEngine::ApplyAfeControls() {
 }
 
 void AfeAudioEngine::ApplyPendingReset() {
-    if (!reset_pending_.exchange(false)) {
+    if (!reset_pending_.load()) {
         return;
     }
-    // Discard audio recorded before (re)activation. Holding input_buffer_mutex_
-    // serializes the reset against Feed(); fetch/reset both run in this task.
-    std::lock_guard<std::mutex> lock(input_buffer_mutex_);
+    // A full AFE feed ring blocks Feed() while it owns this mutex. Keep
+    // fetching/discarding until Feed can finish; waiting here would deadlock
+    // the sole consumer against its producer. Reset still excludes Feed.
+    std::unique_lock<std::mutex> lock(input_buffer_mutex_, std::try_to_lock);
+    if (!lock.owns_lock() || !reset_pending_.exchange(false)) {
+        return;
+    }
     input_buffer_.clear();
     afe_iface_->reset_buffer(afe_data_);
 }
@@ -417,7 +422,7 @@ void AfeAudioEngine::ProcessingTask() {
         }
         const uint32_t generation = control_generation_.load();
         auto* result = afe_iface_->fetch_with_delay(afe_data_, portMAX_DELAY);
-        if (generation != control_generation_.load() ||
+        if (reset_pending_.load() || generation != control_generation_.load() ||
             (xEventGroupGetBits(event_group_) & kAfeActive) == 0) {
             // A disable/re-enable may make an old blocked fetch return after the
             // AFE is active again. Reset immediately and never process that frame.

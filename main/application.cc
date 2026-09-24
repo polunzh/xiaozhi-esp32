@@ -247,6 +247,10 @@ void Application::Run() {
             HandleStopListeningEvent();
         }
 
+        if (bits & MAIN_EVENT_WAKE_WORD_DETECTED) {
+            HandleWakeWordDetectedEvent();
+        }
+
         if (bits & MAIN_EVENT_SEND_AUDIO) {
             static uint32_t send_probe = 0;
             while (auto packet = audio_service_.PopPacketFromSendQueue()) {
@@ -266,10 +270,6 @@ void Application::Run() {
                     break;
                 }
             }
-        }
-
-        if (bits & MAIN_EVENT_WAKE_WORD_DETECTED) {
-            HandleWakeWordDetectedEvent();
         }
 
         if (bits & MAIN_EVENT_VAD_CHANGE) {
@@ -580,7 +580,7 @@ void Application::InitializeProtocol() {
     });
 
     protocol_->OnIncomingAudio([this](std::unique_ptr<AudioStreamPacket> packet) {
-        if (GetDeviceState() == kDeviceStateSpeaking) {
+        if (GetDeviceState() == kDeviceStateSpeaking && !aborted_.load()) {
 #if CONFIG_USE_PAGED_CHAT_MESSAGE
             {
                 std::lock_guard<std::mutex> lock(caption_mutex_);
@@ -983,14 +983,22 @@ void Application::HandleWakeWordDetectedEvent() {
             ;
 
         if (state == kDeviceStateListening) {
+#if CONFIG_LOCAL_WAKE_ACK
+            // No state transition will fire here. Resume capture after the local
+            // acknowledgement drains, just as on a speaking -> listening change.
+            pending_listening_start_ = true;
+#else
             protocol_->SendStartListening(GetDefaultListeningMode());
             audio_service_.ResetDecoder();
             audio_service_.PlaySound(Lang::Sounds::OGG_POPUP);
+#endif
             // Re-enable wake word detection as it was stopped by the detection itself
             audio_service_.EnableWakeWordDetection(true);
         } else {
             // Play popup sound and start listening again
+#if !CONFIG_LOCAL_WAKE_ACK
             play_popup_on_listening_ = true;
+#endif
             SetListeningMode(GetDefaultListeningMode());
         }
     } else if (state == kDeviceStateActivating) {
@@ -999,9 +1007,23 @@ void Application::HandleWakeWordDetectedEvent() {
     }
 }
 
+void Application::PlayLocalWakeAck() {
+#if CONFIG_LOCAL_WAKE_ACK
+    audio_service_.EnableVoiceProcessing(false);
+    audio_service_.ResetDecoder();
+    local_wake_ack_pending_ = true;
+    audio_service_.PlaySound(Lang::Sounds::OGG_WAKE_ACK);
+    ESP_LOGI(TAG, "Playing local wake acknowledgement");
+#endif
+}
+
 void Application::BeginWakeWordInvoke(const std::string& wake_word) {
     // Must run in the main task with the device in idle state
+#if CONFIG_LOCAL_WAKE_ACK
+    PlayLocalWakeAck();
+#else
     audio_service_.EncodeWakeWord();
+#endif
 
     // Always pass through the connecting state, even if the audio channel is
     // already opened. ContinueWakeWordInvoke() rejects any other state, so
@@ -1044,7 +1066,9 @@ void Application::ContinueWakeWordInvoke(const std::string& wake_word) {
     }
 
     ESP_LOGI(TAG, "Wake word detected: %s", wake_word.c_str());
-#if CONFIG_SEND_WAKE_WORD_DATA
+#if CONFIG_LOCAL_WAKE_ACK
+    SetListeningMode(GetDefaultListeningMode());
+#elif CONFIG_SEND_WAKE_WORD_DATA
     // Encode and send the wake word data to the server
     while (auto packet = audio_service_.PopWakeWordPacket()) {
         protocol_->SendAudio(std::move(packet));
@@ -1076,6 +1100,7 @@ void Application::HandleStateChangedEvent() {
     switch (new_state) {
         case kDeviceStateUnknown:
         case kDeviceStateIdle:
+            local_wake_ack_pending_ = false;
             // Keep a just-raised network error visible. SetDeviceState(idle)
             // queues STATE_CHANGED after Alert(), and the idle handler would
             // otherwise wipe the status, emotion, and chat message.
@@ -1098,12 +1123,14 @@ void Application::HandleStateChangedEvent() {
             display->SetEmotion("neutral");
 
             // Make sure the audio processor is running
-            if (play_popup_on_listening_ || !audio_service_.IsAudioProcessorRunning()) {
+            if (local_wake_ack_pending_ || play_popup_on_listening_ ||
+                !audio_service_.IsAudioProcessorRunning()) {
                 // For auto mode, wait for the playback queue to drain before enabling
                 // voice processing. This prevents audio truncation when STOP arrives
                 // late due to network jitter. Instead of blocking the main loop here,
                 // defer the start until MAIN_EVENT_PLAYBACK_DRAINED arrives.
-                if (listening_mode_ == kListeningModeAutoStop && !audio_service_.IsPlaybackIdle()) {
+                if ((local_wake_ack_pending_ || listening_mode_ == kListeningModeAutoStop) &&
+                    !audio_service_.IsPlaybackIdle()) {
                     pending_listening_start_ = true;
                 } else {
                     StartListeningAudio();
@@ -1117,9 +1144,9 @@ void Application::HandleStateChangedEvent() {
 
             if (listening_mode_ != kListeningModeRealtime) {
                 audio_service_.EnableVoiceProcessing(false);
-                // Only AFE wake word can be detected in speaking mode
-                audio_service_.EnableWakeWordDetection(audio_service_.IsAfeWakeWord());
             }
+            // Keep AFE wake detection active during playback in every listening mode.
+            audio_service_.EnableWakeWordDetection(audio_service_.IsAfeWakeWord());
             audio_service_.ResetDecoder();
             break;
         case kDeviceStateNotifying:
@@ -1144,6 +1171,7 @@ void Application::StartListeningAudio() {
         return;
     }
 
+    local_wake_ack_pending_ = false;
     // Send the start listening command
     protocol_->SendStartListening(listening_mode_);
     audio_service_.EnableVoiceProcessing(true);
@@ -1244,6 +1272,13 @@ void Application::Schedule(std::function<void()>&& callback) {
 void Application::AbortSpeaking(AbortReason reason) {
     ESP_LOGI(TAG, "Abort speaking");
     aborted_ = true;
+    // Cancel buffered and in-flight playback before waiting on the network.
+    audio_service_.ResetDecoder();
+#if CONFIG_LOCAL_WAKE_ACK
+    if (reason == kAbortReasonWakeWordDetected) {
+        PlayLocalWakeAck();
+    }
+#endif
     if (protocol_) {
         protocol_->SendAbortSpeaking(reason);
     }

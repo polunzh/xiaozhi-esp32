@@ -2,6 +2,7 @@
 
 #if CONFIG_USE_PAGED_CHAT_MESSAGE
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <ctime>
@@ -185,6 +186,12 @@ void LcdDisplay::SetupPagedChat() {
             static_cast<LcdDisplay*>(lv_event_get_user_data(e))->DrawIdleClock(e);
         },
         LV_EVENT_DRAW_MAIN, this);
+    idle_animation_timer_ = lv_timer_create(
+        [](lv_timer_t* timer) {
+            static_cast<LcdDisplay*>(lv_timer_get_user_data(timer))->AnimateIdleClock();
+        },
+        30, this);
+    lv_timer_pause(idle_animation_timer_);
     StylePagedChat(current_theme_);
     RenderPagedChat();
     lv_obj_move_foreground(preview_image_);
@@ -368,7 +375,20 @@ void LcdDisplay::SetIdleMode(bool idle) {
     if (!paged_chat_enabled_)
         return;
     DisplayLockGuard lock(this);
+    if (idle_clock_visible_ == idle)
+        return;
     idle_clock_visible_ = idle;
+    if (idle) {
+        idle_animation_start_ = lv_tick_get();
+        idle_signal_phase_ = 0;
+        idle_smile_amount_ = 0.0f;
+        idle_colon_opacity_ = LV_OPA_COVER;
+        idle_eye_height_ = 7;
+        lv_timer_reset(idle_animation_timer_);
+        lv_timer_resume(idle_animation_timer_);
+    } else {
+        lv_timer_pause(idle_animation_timer_);
+    }
     UpdateIdleClock();
     Show(idle_clock_, idle);
     RenderPagedChat();
@@ -395,14 +415,46 @@ void LcdDisplay::DrawCompanion(lv_event_t* event) {
 void LcdDisplay::DrawIdleClock(lv_event_t* event) {
     CompanionPainter painter(event, idle_clock_, width_, height_);
     painter.Background();
-    painter.Clock(idle_time_text_, 400, 132, 340);
+    painter.Clock(idle_time_text_, 400, 132, 340, idle_colon_opacity_, &idle_colon_area_);
     auto font = lv_obj_get_style_text_font(idle_hint_, LV_PART_MAIN);
     lv_point_t hint_size;
     lv_text_get_size(&hint_size, lv_label_get_text(idle_hint_), font, 0, 0, LV_COORD_MAX,
                      LV_TEXT_FLAG_NONE);
     const int hint_width = static_cast<int>(static_cast<int64_t>(hint_size.x) * 40 * height_ * 800 /
                                             (font->line_height * 480 * width_));
-    painter.Robot(440 - hint_width / 2 - 72, 387);
+    const int robot_x = 440 - hint_width / 2 - 72;
+    painter.Robot(robot_x, 387, idle_eye_height_, idle_smile_amount_);
+    painter.AntennaSignal(robot_x, 387, idle_signal_phase_);
+    idle_robot_area_ = painter.Area(robot_x + 2, 364, 50, 72);
+}
+
+void LcdDisplay::AnimateIdleClock() {
+    // LVGL timers run under the display lock; only dirty the animated regions.
+    if (!idle_clock_visible_)
+        return;
+    const uint32_t elapsed = lv_tick_get() - idle_animation_start_;
+    const lv_opa_t opacity = elapsed % 1000 < 600 ? LV_OPA_COVER : LV_OPA_TRANSP;
+    if (opacity != idle_colon_opacity_) {
+        idle_colon_opacity_ = opacity;
+        lv_obj_invalidate_area(idle_clock_, &idle_colon_area_);
+    }
+
+    // Repeat the approved expression every 2.4 seconds, with a 100 ms smile lead-in.
+    const uint32_t blink = (elapsed % 2400 + 1400) % 2400;
+    if (blink < 60)
+        idle_eye_height_ = 7 - blink * 6 / 60;
+    else if (blink < 100)
+        idle_eye_height_ = 1;
+    else if (blink < 180)
+        idle_eye_height_ = 1 + (blink - 100) * 6 / 80;
+    else
+        idle_eye_height_ = 7;
+
+    const uint32_t smile = (elapsed % 2400 + 1500) % 2400;
+    const float strength = smile < 1200 ? std::sin(smile * 3.14159265f / 1200) : 0.0f;
+    idle_smile_amount_ = strength * strength;
+    idle_signal_phase_ = elapsed % 3000;
+    lv_obj_invalidate_area(idle_clock_, &idle_robot_area_);
 }
 
 void LcdDisplay::UpdateIdleClock() {

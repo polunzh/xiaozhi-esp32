@@ -336,10 +336,15 @@ LcdDisplay::~LcdDisplay() {
     }
 
 #if CONFIG_USE_PAGED_CHAT_MESSAGE
-    if (idle_clock_ != nullptr)
-        lv_obj_del(idle_clock_);
-    if (page_controls_ != nullptr)
-        lv_obj_del(page_controls_);
+    {
+        DisplayLockGuard lock(this);
+        if (idle_animation_timer_ != nullptr)
+            lv_timer_delete(idle_animation_timer_);
+        if (idle_clock_ != nullptr)
+            lv_obj_del(idle_clock_);
+        if (page_controls_ != nullptr)
+            lv_obj_del(page_controls_);
+    }
 #endif
     if (preview_image_ != nullptr) {
         lv_obj_del(preview_image_);

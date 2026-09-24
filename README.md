@@ -6,6 +6,8 @@ A personally maintained fork of [78/xiaozhi-esp32](https://github.com/78/xiaozhi
 
 ## Changes in this fork
 
+- Animated idle clock with a blinking colon, robot blinks and smiles, and continuous antenna waves. See the [motion preview](docs/design/screensaver-motion-v3.gif).
+- Korvo S31 responds to wake-up with an embedded “我在” in Xiaoman's voice, clears speech immediately on wake-word interruption, and avoids an AFE reset/feed lock deadlock. See [local wake response notes](docs/local-wake-response.md).
 - Playback-following paged chat, manual history navigation and resume-follow controls. The Korvo S31 variant enables `CONFIG_USE_PAGED_CHAT_MESSAGE` by default.
 - ES8389 playback reference channel configuration for Korvo S31.
 - Companion-style chat with active-sentence highlighting, listening/thinking status, and an idle clock with a wake hint.
@@ -22,7 +24,7 @@ The 2026-09-22 validation record reports a successful ESP-IDF v6.1 Korvo S31 bui
 
 The companion UI and Bluetooth prototype are included in source. The Bluetooth policy helper is not yet integrated with the output worker; cancellation, callback synchronization, codec negotiation and remote playback-tail handling still need work. No Bluetooth release variant is provided. See the [design and pending work](docs/2026-09-21-bluetooth-speaker-design.md).
 
-Korvo S31 firmware compilation and host tests were rerun on 2026-09-24. Wake detection was observed on hardware; full Bluetooth, AEC, no-display/OLED and other-chip regression checks remain pending. Historical design images in `docs/images/` retain the earlier Xiaozhi label. Security reports record findings at their stated revisions and do not imply those findings are fixed.
+Korvo S31 firmware compilation and all 86 host tests passed on 2026-09-24. After flashing, the user confirmed fast local acknowledgement, repeated conversations and wake-word interruption without another UI freeze; full Bluetooth, AEC, no-display/OLED and other-chip regression checks remain pending. Historical design images in `docs/images/` retain the earlier Xiaozhi label. Security reports record findings at their stated revisions and do not imply those findings are fixed.
 
 ## Build the Korvo S31 variant
 

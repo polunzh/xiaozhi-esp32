@@ -62,6 +62,15 @@ protected:
     lv_obj_t* idle_clock_ = nullptr;
     lv_obj_t* idle_date_ = nullptr;
     lv_obj_t* idle_hint_ = nullptr;
+    lv_timer_t* idle_animation_timer_ = nullptr;
+    uint32_t idle_animation_start_ = 0;
+    uint32_t idle_signal_phase_ = 0;
+    float idle_smile_amount_ = 0.0f;
+    lv_opa_t idle_colon_opacity_ = LV_OPA_COVER;
+    int idle_eye_height_ = 7;
+    lv_area_t idle_colon_area_ = {};
+    lv_area_t idle_robot_area_ = {};
+    void AnimateIdleClock();
     char idle_time_text_[6] = "--:--";
     void UpdateIdleClock();
     void DrawIdleClock(lv_event_t* event);

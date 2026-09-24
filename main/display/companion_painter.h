@@ -3,6 +3,7 @@
 
 #include <lvgl.h>
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 
 // Shared 800x480 design coordinates keep clock and conversation visually continuous.
@@ -39,14 +40,42 @@ public:
                                 bounds_.y1 + (y + h) * height_ / 480 - 1};
         lv_draw_rect(layer_, &dsc, &area);
     }
-    void Robot(int x, int y) {
+    lv_area_t Area(int x, int y, int w, int h) const {
+        return {bounds_.x1 + x * width_ / 800 - 1, bounds_.y1 + y * height_ / 480 - 1,
+                bounds_.x1 + (x + w) * width_ / 800 + 1, bounds_.y1 + (y + h) * height_ / 480 + 1};
+    }
+    void Robot(int x, int y, int eye_height = 7, float smile_amount = -1.0f) {
         Rect(x, y + 12, 52, 39, 12, Cyan(), true);
-        Rect(x + 13, y + 27, 7, 7, 4, Cyan());
-        Rect(x + 33, y + 27, 7, 7, 4, Cyan());
+        Rect(x + 13, y + 27 + (7 - eye_height) / 2, 7, eye_height, 4, Cyan());
+        Rect(x + 33, y + 27 + (7 - eye_height) / 2, 7, eye_height, 4, Cyan());
         Rect(x + 25, y + 5, 2, 8, 1, Cyan());
         Rect(x + 23, y, 6, 6, 3, Cyan());
         Rect(x - 4, y + 24, 2, 14, 1, Cyan());
         Rect(x + 54, y + 24, 2, 14, 1, Cyan());
+        if (smile_amount >= 0.0f) {
+            // A shallow parabola matches the approved idle smile keyframes.
+            const float half_width = 7 + 2 * smile_amount;
+            const float corner_y = y + 37 - 1.5f * smile_amount;
+            const float depth = 5 + 2 * smile_amount;
+            auto point = [&](int step) -> lv_point_precise_t {
+                const float u = step / 12.0f;
+                return {static_cast<lv_value_precise_t>(
+                            bounds_.x1 + (x + 27 - half_width + 2 * half_width * u) * width_ / 800),
+                        static_cast<lv_value_precise_t>(
+                            bounds_.y1 + (corner_y + 4 * depth * u * (1 - u)) * height_ / 480)};
+            };
+            lv_draw_line_dsc_t line;
+            lv_draw_line_dsc_init(&line);
+            line.color = Cyan();
+            line.width = std::max(1, 2 * height_ / 480);
+            line.round_start = line.round_end = 1;
+            for (int i = 0; i < 12; ++i) {
+                line.p1 = point(i);
+                line.p2 = point(i + 1);
+                lv_draw_line(layer_, &line);
+            }
+            return;
+        }
         lv_draw_arc_dsc_t smile;
         lv_draw_arc_dsc_init(&smile);
         smile.color = Cyan();
@@ -58,6 +87,27 @@ public:
         smile.end_angle = 145;
         smile.rounded = 1;
         lv_draw_arc(layer_, &smile);
+    }
+    void AntennaSignal(int x, int y, uint32_t phase_ms) {
+        lv_draw_arc_dsc_t arc;
+        lv_draw_arc_dsc_init(&arc);
+        arc.color = Cyan();
+        arc.center = {bounds_.x1 + (x + 26) * width_ / 800, bounds_.y1 + (y + 3) * height_ / 480};
+        arc.width = std::max(1, 2 * height_ / 480);
+        arc.start_angle = 225;
+        arc.end_angle = 315;
+        arc.rounded = 1;
+        // Keep the inner signal visible throughout the entire cycle.
+        arc.radius = std::max(1, 9 * height_ / 480);
+        arc.opa = 217;
+        lv_draw_arc(layer_, &arc);
+        for (uint32_t offset : {0U, 1500U}) {
+            const float phase = ((phase_ms + offset) % 3000) / 3000.0f;
+            const float strength = std::sin(phase * 3.14159265f);
+            arc.radius = std::max(1, static_cast<int>((12 + 10 * phase) * height_ / 480));
+            arc.opa = static_cast<lv_opa_t>(191 * strength * strength);
+            lv_draw_arc(layer_, &arc);
+        }
     }
     void Wave(int center_x, int center_y, bool large) {
         static constexpr int heights[] = {10, 20, 32, 44, 28, 18, 10};
@@ -83,7 +133,8 @@ public:
             Rect(350, 441, std::max(3, int((index + 1) * 100 / count)), 3, 2, Cyan());
         }
     }
-    void Clock(const char* time, int center_x, int top, int scale = 256) {
+    void Clock(const char* time, int center_x, int top, int scale = 256,
+               lv_opa_t colon_opacity = LV_OPA_COVER, lv_area_t* colon_area = nullptr) {
         // Tiny polygons lose their solid centers to antialiasing at header size.
         // Use pixel-aligned segments for the small clock.
         if (scale < 100) {
@@ -129,19 +180,23 @@ public:
             total_width += advance(time[i]);
         int x = 0;
         const int left = center_x - total_width * scale / 512;
-        auto polygon = [&](const lv_point_t* points, int count, int x, int y, lv_color_t color) {
+        auto polygon = [&](const lv_point_t* points, int count, int x, int y, lv_color_t color,
+                           lv_opa_t opacity = LV_OPA_COVER) {
             lv_point_t scaled[6];
             for (int i = 0; i < count; ++i)
                 scaled[i] = {left + (x + points[i].x) * scale / 256,
                              top + (y + points[i].y) * scale / 256};
-            Polygon(scaled, count, color);
+            Polygon(scaled, count, color, opacity);
         };
         for (int i = 0; i < 5; ++i) {
             const char c = time[i];
             if (c == ':') {
                 const lv_point_t dot[] = {{9, 0}, {27, 0}, {27, 18}, {9, 18}};
-                polygon(dot, 4, x, 38, Cyan());
-                polygon(dot, 4, x, 110, Cyan());
+                polygon(dot, 4, x, 38, Cyan(), colon_opacity);
+                polygon(dot, 4, x, 110, Cyan(), colon_opacity);
+                if (colon_area != nullptr)
+                    *colon_area = Area(left + (x + 9) * scale / 256, top + 38 * scale / 256,
+                                       18 * scale / 256 + 1, 90 * scale / 256 + 1);
             } else {
                 const uint8_t mask = c >= '0' && c <= '9' ? masks[c - '0'] : 0x40;
                 for (int segment = 0; segment < 7; ++segment) {
@@ -157,11 +212,12 @@ private:
     lv_layer_t* layer_;
     lv_area_t bounds_;
     int width_, height_;
-    void Polygon(const lv_point_t* points, int count, lv_color_t color) {
+    void Polygon(const lv_point_t* points, int count, lv_color_t color,
+                 lv_opa_t opacity = LV_OPA_COVER) {
         lv_draw_triangle_dsc_t dsc;
         lv_draw_triangle_dsc_init(&dsc);
         dsc.color = color;
-        dsc.opa = LV_OPA_COVER;
+        dsc.opa = opacity;
         auto point = [&](int i) -> lv_point_precise_t {
             return {static_cast<lv_value_precise_t>(bounds_.x1 + points[i].x * width_ / 800),
                     static_cast<lv_value_precise_t>(bounds_.y1 + points[i].y * height_ / 480)};
