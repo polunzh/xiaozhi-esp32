@@ -336,6 +336,8 @@ LcdDisplay::~LcdDisplay() {
     }
 
 #if CONFIG_USE_PAGED_CHAT_MESSAGE
+    if (idle_clock_ != nullptr)
+        lv_obj_del(idle_clock_);
     if (page_controls_ != nullptr)
         lv_obj_del(page_controls_);
 #endif
@@ -1107,10 +1109,7 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     }
 #if CONFIG_USE_PAGED_CHAT_MESSAGE
     if (paged_chat_enabled_) {
-        paged_response_retained_ = false;
-        paged_chat_.Reset();
-        AppendPagedChat(0, content);
-        RenderPagedChat();
+        SetPagedMessage(role, content);
         return;
     }
 #endif
@@ -1156,6 +1155,12 @@ void LcdDisplay::ClearChatMessages() {
 #endif
 
 void LcdDisplay::SetEmotion(const char* emotion) {
+#if CONFIG_USE_PAGED_CHAT_MESSAGE
+    // The companion UI keeps one consistent vector character in every state.
+    if (paged_chat_enabled_)
+        return;
+#endif
+
     if (!setup_ui_called_) {
         ESP_LOGW(TAG, "SetEmotion('%s') called before SetupUI() - emotion will not be displayed!",
                  emotion);

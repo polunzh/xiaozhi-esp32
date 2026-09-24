@@ -966,6 +966,21 @@ config USE_AUDIO_PROCESSOR
         is not enabled because this project does not provide an NSNet model.
         Requires ESP32-S3, ESP32-P4, or ESP32-S31 with PSRAM.
 
+config XIAOZHI_BLUETOOTH_AUDIO_OUTPUT
+    bool "Route playback to Xiaomi Bluetooth speaker"
+    default n
+    depends on IDF_TARGET_ESP32S31
+    depends on BT_ENABLED && BT_CLASSIC_ENABLED && BT_A2DP_ENABLE
+    depends on BT_A2DP_USE_EXTERNAL_CODEC && BT_A2DP_CODEC_AAC_ENABLED
+    help
+        Send decoded playback audio to a configured Classic Bluetooth A2DP AAC sink.
+        The board microphone remains the input source and playback is half-duplex.
+
+config XIAOZHI_BLUETOOTH_TARGET_ADDR
+    string "Bluetooth playback target address"
+    default ""
+    depends on XIAOZHI_BLUETOOTH_AUDIO_OUTPUT
+
 config USE_DEVICE_AEC
     bool "Enable Device-Side AEC"
     default n

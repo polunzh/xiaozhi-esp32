@@ -8,6 +8,8 @@ A personally maintained fork of [78/xiaozhi-esp32](https://github.com/78/xiaozhi
 
 - Playback-following paged chat, manual history navigation and resume-follow controls. The Korvo S31 variant enables `CONFIG_USE_PAGED_CHAT_MESSAGE` by default.
 - ES8389 playback reference channel configuration for Korvo S31.
+- Companion-style chat with active-sentence highlighting, listening/thinking status, and an idle clock with a wake hint.
+- Experimental ESP32-S31 Bluetooth AAC output, audio diagnostics, a standalone output-policy test, and a candidate partition layout. Bluetooth output remains disabled in the standard variant; configure your own target address before experimenting.
 - The Korvo S31 variant uses the custom Chinese wake phrase “你好小满” (`ni hao xiao man`) with MultiNet7. Chinese and English UI name, speaking-status and wake-hint strings use Xiaoman.
 
 Flash the model assets together with the firmware when switching to this wake phrase. Set the assistant's name and wake phrase in your server configuration as well; the server controls its spoken identity.
@@ -18,7 +20,9 @@ Page timing within a sentence is estimated from text proportions; the server doe
 
 The 2026-09-22 validation record reports a successful ESP-IDF v6.1 Korvo S31 build and device checks for layout, automatic paging and touch navigation. Dedicated theme-switching and long-history hardware stress tests remain pending. Other inherited board variants require separate validation for this fork.
 
-This published revision includes the committed paged-chat and codec changes. Bluetooth speaker integration and subsequent display experiments remain local development work.
+The companion UI and Bluetooth prototype are included in source. The Bluetooth policy helper is not yet integrated with the output worker; cancellation, callback synchronization, codec negotiation and remote playback-tail handling still need work. No Bluetooth release variant is provided. See the [design and pending work](docs/2026-09-21-bluetooth-speaker-design.md).
+
+Korvo S31 firmware compilation and host tests were rerun on 2026-09-24. Wake detection was observed on hardware; full Bluetooth, AEC, no-display/OLED and other-chip regression checks remain pending. Historical design images in `docs/images/` retain the earlier Xiaozhi label. Security reports record findings at their stated revisions and do not imply those findings are fixed.
 
 ## Build the Korvo S31 variant
 

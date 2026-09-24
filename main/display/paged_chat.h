@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <deque>
 #include <string>
+#include <utility>
 #include <vector>
 
 // UI-task-owned model. Layout is measured by the caller using the actual display font.
@@ -205,6 +206,16 @@ public:
     size_t Count() const { return pages_.size(); }
     size_t Index() const { return visible_; }
     size_t Omitted() const { return omitted_; }
+    // Byte offsets in Text(), suitable for coloring UTF-8 without changing layout.
+    std::pair<size_t, size_t> ActiveBytes() const {
+        if (!following_ || pages_.empty() || last_id_ == 0)
+            return {0, 0};
+        for (const auto& span : pages_[visible_].spans) {
+            if (span.id == last_id_)
+                return {span.byte_start, span.byte_start + span.byte_length};
+        }
+        return {0, 0};
+    }
     const std::string& Text() const {
         static const std::string empty;
         return pages_.empty() ? empty : pages_[visible_].text;

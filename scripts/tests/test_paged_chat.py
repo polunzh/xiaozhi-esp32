@@ -79,6 +79,33 @@ int main() {
     p.Previous();
     p.SetDuration(200, 500);
     assert(p.Index() == 2 && !p.Following());
+    // Highlight follows actual audio, including multiple sentences on one page.
+    p.Reset();
+    p.Append(300, "你好", fits);
+    p.Append(301, "世界", fits);
+    assert(p.ActiveBytes().second == 0); // queued text is not spoken yet
+    p.Advance(300, 0);
+    assert(p.ActiveBytes() == std::make_pair(size_t(0), size_t(6)));
+    p.Advance(301, 0);
+    assert(p.ActiveBytes() == std::make_pair(size_t(7), size_t(13)));
+    p.Pause();
+    assert(p.ActiveBytes().second == 0); // review uses uniform text brightness
+    p.Advance(301, 100);
+    p.Resume();
+    assert(p.ActiveBytes() == std::make_pair(size_t(7), size_t(13)));
+    p.Reflow(narrow);
+    assert(p.Text() == "世界");
+    assert(p.ActiveBytes() == std::make_pair(size_t(0), size_t(6)));
+    p.Reset();
+    p.Append(302, "你好世界。再见世界。", fits);
+    p.SetDuration(302, 1000);
+    p.Advance(302, 500);
+    assert(p.Text() == "再见世界。");
+    assert(p.ActiveBytes() == std::make_pair(size_t(0), size_t(15)));
+    p.Previous();
+    assert(p.ActiveBytes().second == 0);
+    p.Resume();
+    assert(p.ActiveBytes().second == 15);
     p.Reset();
     p.Append(201, std::string(100000, 'x'), fits);
     assert(p.Count() <= PagedChat::kMaxPages);

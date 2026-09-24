@@ -85,7 +85,8 @@ Es8389AudioCodec::~Es8389AudioCodec() {
     audio_codec_delete_data_if(data_if_);
 }
 
-void Es8389AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din) {
+void Es8389AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws,
+                                            gpio_num_t dout, gpio_num_t din) {
     assert(input_sample_rate_ == output_sample_rate_);
 
     i2s_chan_config_t chan_cfg = {
@@ -100,39 +101,31 @@ void Es8389AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gp
     ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &tx_handle_, &rx_handle_));
 
     i2s_std_config_t std_cfg = {
-        .clk_cfg = {
-            .sample_rate_hz = (uint32_t)output_sample_rate_,
-            .clk_src = I2S_CLK_SRC_DEFAULT,
-            .mclk_multiple = I2S_MCLK_MULTIPLE_256,
-#ifdef   I2S_HW_VERSION_2    
+        .clk_cfg =
+            {
+                .sample_rate_hz = (uint32_t)output_sample_rate_,
+                .clk_src = I2S_CLK_SRC_DEFAULT,
+                .mclk_multiple = I2S_MCLK_MULTIPLE_256,
+#ifdef I2S_HW_VERSION_2
                 .ext_clk_freq_hz = 0,
 #endif
-        },
-        .slot_cfg = {
-            .data_bit_width = I2S_DATA_BIT_WIDTH_16BIT,
-            .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
-            .slot_mode = I2S_SLOT_MODE_STEREO,
-            .slot_mask = I2S_STD_SLOT_BOTH,
-            .ws_width = I2S_DATA_BIT_WIDTH_16BIT,
-            .ws_pol = false,
-            .bit_shift = true,
-            .left_align = true,
-            .big_endian = false,
-            .bit_order_lsb = false
-        },
-        .gpio_cfg = {
-            .mclk = mclk,
-            .bclk = bclk,
-            .ws = ws,
-            .dout = dout,
-            .din = din,
-            .invert_flags = {
-                .mclk_inv = false,
-                .bclk_inv = false,
-                .ws_inv = false
-            }
-        }
-    };
+            },
+        .slot_cfg = {.data_bit_width = I2S_DATA_BIT_WIDTH_16BIT,
+                     .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
+                     .slot_mode = I2S_SLOT_MODE_STEREO,
+                     .slot_mask = I2S_STD_SLOT_BOTH,
+                     .ws_width = I2S_DATA_BIT_WIDTH_16BIT,
+                     .ws_pol = false,
+                     .bit_shift = true,
+                     .left_align = true,
+                     .big_endian = false,
+                     .bit_order_lsb = false},
+        .gpio_cfg = {.mclk = mclk,
+                     .bclk = bclk,
+                     .ws = ws,
+                     .dout = dout,
+                     .din = din,
+                     .invert_flags = {.mclk_inv = false, .bclk_inv = false, .ws_inv = false}}};
 
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle_, &std_cfg));
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &std_cfg));
@@ -208,12 +201,30 @@ void Es8389AudioCodec::EnableOutput(bool enable) {
 
 int Es8389AudioCodec::Read(int16_t* dest, int samples) {
     if (input_enabled_) {
-        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(input_dev_, (void*)dest, samples * sizeof(int16_t)));
+        ESP_ERROR_CHECK_WITHOUT_ABORT(
+            esp_codec_dev_read(input_dev_, (void*)dest, samples * sizeof(int16_t)));
     }
     return samples;
 }
 
 int Es8389AudioCodec::Write(const int16_t* data, int samples) {
+    static uint32_t probe_writes = 0;
+    if ((probe_writes++ % 50) == 0) {
+        int peak = 0;
+        for (int i = 0; i < samples; ++i) {
+            int value = data[i] < 0 ? -static_cast<int>(data[i]) : data[i];
+            if (value > peak)
+                peak = value;
+        }
+        int mute = -1, volume = -1;
+        codec_if_->get_reg(codec_if_, 0x20, &mute);
+        codec_if_->get_reg(codec_if_, 0x46, &volume);
+        ESP_LOGI(TAG,
+                 "AudioProbe TX: write=%lu samples=%d peak=%d enabled=%d volume=%d reg20=%02x "
+                 "reg46=%02x",
+                 static_cast<unsigned long>(probe_writes), samples, peak, output_enabled_,
+                 output_volume_, mute, volume);
+    }
     if (output_enabled_) {
         if (output_channels_ > 1) {
             // xiaozhi 全链路产出单声道 PCM；双声道输出时复制到 L/R 两路，
@@ -224,10 +235,11 @@ int Es8389AudioCodec::Write(const int16_t* data, int samples) {
                     stereo[static_cast<size_t>(i) * output_channels_ + c] = data[i];
                 }
             }
-            ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_write(
-                output_dev_, stereo.data(), stereo.size() * sizeof(int16_t)));
+            ESP_ERROR_CHECK_WITHOUT_ABORT(
+                esp_codec_dev_write(output_dev_, stereo.data(), stereo.size() * sizeof(int16_t)));
         } else {
-            ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_write(output_dev_, (void*)data, samples * sizeof(int16_t)));
+            ESP_ERROR_CHECK_WITHOUT_ABORT(
+                esp_codec_dev_write(output_dev_, (void*)data, samples * sizeof(int16_t)));
         }
     }
     return samples;

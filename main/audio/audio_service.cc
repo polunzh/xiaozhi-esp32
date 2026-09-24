@@ -48,6 +48,14 @@ AudioService::~AudioService() {
 void AudioService::Initialize(AudioCodec* codec) {
     codec_ = codec;
     codec_->Start();
+#if CONFIG_XIAOZHI_BLUETOOTH_AUDIO_OUTPUT
+    bluetooth_output_ = std::make_unique<BluetoothAudioOutput>();
+    if (!bluetooth_output_->Start(codec_->output_sample_rate(),
+                                  [this]() { audio_queue_cv_.notify_all(); })) {
+        ESP_LOGW(TAG, "Bluetooth audio output unavailable; using local codec");
+        bluetooth_output_.reset();
+    }
+#endif
 
     esp_opus_dec_cfg_t opus_dec_cfg =
         OPUS_DEC_CFG(codec->output_sample_rate(), OPUS_FRAME_DURATION_MS);
@@ -187,6 +195,11 @@ void AudioService::Stop() {
         notify_drained = MarkPlaybackDrainedLocked();
         audio_queue_cv_.notify_all();
     }
+#if CONFIG_XIAOZHI_BLUETOOTH_AUDIO_OUTPUT
+    if (bluetooth_output_) {
+        bluetooth_output_->Stop();
+    }
+#endif
     if (notify_drained && callbacks_.on_playback_drained) {
         callbacks_.on_playback_drained();
     }
@@ -339,12 +352,6 @@ void AudioService::AudioOutputTask() {
         audio_queue_cv_.notify_all();
         lock.unlock();
 
-        if (!codec_->output_enabled()) {
-            esp_timer_stop(audio_power_timer_);
-            esp_timer_start_periodic(audio_power_timer_, AUDIO_POWER_CHECK_INTERVAL_MS * 1000);
-            codec_->EnableOutput(true);
-        }
-
         if (task.playback_id != 0 && callbacks_.on_playback_progress) {
             callbacks_.on_playback_progress(task.playback_id, task.media_position_ms);
         }
@@ -354,7 +361,26 @@ void AudioService::AudioOutputTask() {
             callbacks_.on_caption_progress(task.caption_id, task.caption_position_ms);
         }
 
-        codec_->OutputData(task.pcm);
+        bool sent_to_bluetooth = false;
+#if CONFIG_XIAOZHI_BLUETOOTH_AUDIO_OUTPUT
+        if (bluetooth_output_ && bluetooth_output_->IsReady()) {
+            while (!service_stopped_.load() && generation == playback_generation_ &&
+                   !bluetooth_output_->TryWrite(task.pcm.data(), task.pcm.size(), generation,
+                                                codec_->output_volume())) {
+                std::unique_lock<std::mutex> wait_lock(audio_queue_mutex_);
+                audio_queue_cv_.wait_for(wait_lock, std::chrono::milliseconds(20));
+            }
+            sent_to_bluetooth = generation == playback_generation_ && bluetooth_output_->IsReady();
+        }
+#endif
+        if (!sent_to_bluetooth && generation == playback_generation_) {
+            if (!codec_->output_enabled()) {
+                esp_timer_stop(audio_power_timer_);
+                esp_timer_start_periodic(audio_power_timer_, AUDIO_POWER_CHECK_INTERVAL_MS * 1000);
+                codec_->EnableOutput(true);
+            }
+            codec_->OutputData(task.pcm);
+        }
 
         /* Update the last output time */
         last_output_time_ = std::chrono::steady_clock::now();
@@ -808,6 +834,11 @@ void AudioService::ResetDecoder() {
     {
         std::lock_guard<std::mutex> lock(audio_queue_mutex_);
         ++playback_generation_;
+#if CONFIG_XIAOZHI_BLUETOOTH_AUDIO_OUTPUT
+        if (bluetooth_output_) {
+            bluetooth_output_->Cancel(playback_generation_);
+        }
+#endif
         std::unique_lock<std::mutex> decoder_lock(decoder_mutex_);
         if (opus_decoder_ != nullptr) {
             esp_opus_dec_reset(opus_decoder_);
@@ -826,8 +857,20 @@ void AudioService::ResetDecoder() {
 }
 
 bool AudioService::IsPlaybackDrainedLocked() const {
+    bool bluetooth_drained = true;
+#if CONFIG_XIAOZHI_BLUETOOTH_AUDIO_OUTPUT
+    bluetooth_drained = !bluetooth_output_ || bluetooth_output_->IsDrained();
+#endif
     return audio_decode_queue_.empty() && audio_playback_queue_.empty() && !decode_in_flight_ &&
-           !output_in_flight_;
+           !output_in_flight_ && bluetooth_drained;
+}
+
+bool AudioService::RequiresHalfDuplexPlayback() const {
+#if CONFIG_XIAOZHI_BLUETOOTH_AUDIO_OUTPUT
+    return true;
+#else
+    return false;
+#endif
 }
 
 bool AudioService::MarkPlaybackDrainedLocked() {

@@ -24,6 +24,9 @@
 #include "fixed_queue.h"
 #include "ogg_demuxer.h"
 #include "protocol.h"
+#if CONFIG_XIAOZHI_BLUETOOTH_AUDIO_OUTPUT
+#include "output/bluetooth_audio_output.h"
+#endif
 
 /*
  * There are two types of audio data flow:
@@ -128,6 +131,7 @@ public:
     bool IsVoiceDetected() const { return voice_detected_; }
     bool IsIdle();
     bool IsPlaybackIdle();
+    bool RequiresHalfDuplexPlayback() const;
     bool IsWakeWordRunning() const {
         return xEventGroupGetBits(event_group_) & AS_EVENT_WAKE_WORD_RUNNING;
     }
@@ -156,6 +160,9 @@ private:
     AudioServiceCallbacks callbacks_;
     std::unique_ptr<AudioEngine> audio_engine_;
     std::unique_ptr<AudioDebugger> audio_debugger_;
+#if CONFIG_XIAOZHI_BLUETOOTH_AUDIO_OUTPUT
+    std::unique_ptr<BluetoothAudioOutput> bluetooth_output_;
+#endif
     void* opus_encoder_ = nullptr;
     void* opus_decoder_ = nullptr;
     std::mutex decoder_mutex_;

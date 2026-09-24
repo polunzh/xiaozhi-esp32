@@ -248,8 +248,15 @@ void Application::Run() {
         }
 
         if (bits & MAIN_EVENT_SEND_AUDIO) {
+            static uint32_t send_probe = 0;
             while (auto packet = audio_service_.PopPacketFromSendQueue()) {
+                if ((++send_probe % 10) == 1) {
+                    ESP_LOGI(TAG, "Audio send probe #%lu bytes=%u",
+                             static_cast<unsigned long>(send_probe),
+                             static_cast<unsigned>(packet->payload.size()));
+                }
                 if (protocol_ && !protocol_->SendAudio(std::move(packet))) {
+                    ESP_LOGW(TAG, "Audio send failed");
                     // Drop the remaining packets. Leaving them in the queue would
                     // stall the Opus codec task (it waits for queue space), which in
                     // turn deadlocks the whole audio input pipeline, as no new
@@ -768,10 +775,9 @@ void Application::InitializeProtocol() {
             if (cJSON_IsObject(payload)) {
                 CJsonStringUniquePtr payload_json(cJSON_PrintUnformatted(payload));
                 if (payload_json) {
-                    Schedule(
-                        [this, display, payload_str = std::string(payload_json.get())]() {
-                            display->SetChatMessage("system", payload_str.c_str());
-                        });
+                    Schedule([this, display, payload_str = std::string(payload_json.get())]() {
+                        display->SetChatMessage("system", payload_str.c_str());
+                    });
                 }
             } else {
                 ESP_LOGW(TAG, "Invalid custom message format: missing payload");
@@ -813,6 +819,7 @@ void Application::Alert(const char* status, const char* message, const char* emo
                         const std::string_view& sound) {
     ESP_LOGW(TAG, "Alert [%s] %s: %s", emotion, status, message);
     auto display = Board::GetInstance().GetDisplay();
+    display->SetIdleMode(false);
     display->SetStatus(status);
     display->SetEmotion(emotion);
     display->SetChatMessage("system", message);
@@ -825,6 +832,7 @@ void Application::DismissAlert() {
     last_error_message_.clear();
     if (GetDeviceState() == kDeviceStateIdle) {
         auto display = Board::GetInstance().GetDisplay();
+        display->SetIdleMode(true);
         display->SetStatus(Lang::Strings::STANDBY);
         display->SetEmotion("neutral");
         display->SetChatMessage("system", "");
@@ -1064,6 +1072,7 @@ void Application::HandleStateChangedEvent() {
     auto led = board.GetLed();
     led->OnStateChanged();
 
+    display->SetIdleMode(new_state == kDeviceStateIdle && last_error_message_.empty());
     switch (new_state) {
         case kDeviceStateUnknown:
         case kDeviceStateIdle:
@@ -1246,6 +1255,11 @@ void Application::SetListeningMode(ListeningMode mode) {
 }
 
 ListeningMode Application::GetDefaultListeningMode() const {
+#if CONFIG_XIAOZHI_BLUETOOTH_AUDIO_OUTPUT
+    if (audio_service_.RequiresHalfDuplexPlayback()) {
+        return kListeningModeAutoStop;
+    }
+#endif
     return aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime;
 }
 

@@ -46,6 +46,7 @@ public:
     virtual void SetEmotion(const char* emotion);
     virtual void SetChatMessage(const char* role, const char* content);
     virtual void ClearChatMessages();
+    virtual void SetIdleMode(bool idle) {}
     virtual void BeginChatResponse() {}
     virtual void AddChatSentence(uint32_t id, const char* text) {
         SetChatMessage("assistant", text);

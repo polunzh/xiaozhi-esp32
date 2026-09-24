@@ -23,6 +23,7 @@ bool WebsocketProtocol::Start() {
 
 bool WebsocketProtocol::SendAudio(std::unique_ptr<AudioStreamPacket> packet) {
     if (websocket_ == nullptr || !websocket_->IsConnected()) {
+        ESP_LOGW(TAG, "Audio send skipped: websocket disconnected");
         return false;
     }
 
